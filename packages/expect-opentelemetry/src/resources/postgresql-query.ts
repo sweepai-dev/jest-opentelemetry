@@ -122,11 +122,37 @@ export class PostgreSQLQuery {
 
     return new PostgreSQLQuery(filteredSpans, this.serviceName, this.times);
   }
+
+  withPartialQuery(partialQuery: string) {
+    const parsedPartialQuery = parseSQL(partialQuery);
+    const filteredSpans = this.spans.filter((span) => {
+      const statement = span.attributes?.find(
+        (attribute: opentelemetry.proto.common.v1.IKeyValue) =>
+          attribute.key === SemanticAttributes.DB_STATEMENT,
+      )?.value?.stringValue;
+
+      if (!statement) {
+        return false;
+      }
+
+      const parsedStatement = parseSQL(statement);
+      return compareParsedQueries(parsedPartialQuery, parsedStatement);
+    });
+
+    if (filteredSpans.length < this.times) {
+      throw new Error(
+        `Expected ${this.times} queries by ${this.serviceName} to postgresql with partial query ${partialQuery}, but found ${filteredSpans.length}.\n` +
+          `Found statements:\n${printStatements(this.spans)}`,
+      );
+    }
+
+    return new PostgreSQLQuery(filteredSpans, this.serviceName, this.times);
+  }
 }
 
 const printStatements = (spans: opentelemetry.proto.trace.v1.ISpan[]) => {
-  const MAX_LEN = 100;
-  return extractAttributeStringValues(spans, SemanticAttributes.DB_STATEMENT)
+  ...
+};
     .map((statement) => {
       if (statement.length > MAX_LEN) {
         return `${statement.slice(0, MAX_LEN)}...`;
